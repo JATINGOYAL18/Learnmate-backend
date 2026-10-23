@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { ZodError } from 'zod';
 import { AppError } from '../utils/errors';
 import { env } from '../config/env';
+import { sanitizeError } from '../services/gemini.service';
 
 /**
  * Centralized error-handling middleware.
@@ -36,7 +37,7 @@ export const errorHandler = (
       success: false,
       error: {
         code: 'APP_ERROR',
-        message: err.message,
+        message: sanitizeError(err.message),
       },
     });
     return;
@@ -44,16 +45,18 @@ export const errorHandler = (
 
   // Handle Unexpected Runtime Errors
   const isDev = env.NODE_ENV === 'development';
-  const errorMessage = err instanceof Error ? err.message : 'Internal Server Error';
+  const rawMessage = err instanceof Error ? err.message : 'Internal Server Error';
+  const safeMessage = sanitizeError(rawMessage);
+  const safeStack = err instanceof Error && err.stack ? sanitizeError(err.stack) : undefined;
 
-  console.error(`[Unhandled Error] ${req.method} ${req.originalUrl}:`, err);
+  console.error(`[Unhandled Error] ${req.method} ${req.originalUrl}:`, safeMessage);
 
   res.status(500).json({
     success: false,
     error: {
       code: 'INTERNAL_SERVER_ERROR',
-      message: isDev ? errorMessage : 'An unexpected error occurred. Please try again later.',
-      ...(isDev && err instanceof Error ? { stack: err.stack } : {}),
+      message: isDev ? safeMessage : 'An unexpected error occurred. Please try again later.',
+      ...(isDev && safeStack ? { stack: safeStack } : {}),
     },
   });
 };

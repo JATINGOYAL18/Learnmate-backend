@@ -15,6 +15,8 @@ const envSchema = z.object({
     .enum(['development', 'production', 'test'])
     .default('development'),
   CORS_ORIGIN: z.string().default('http://localhost:5173'),
+  GEMINI_API_KEY: z.string().default(''),
+  GEMINI_MODEL: z.string().min(1).default('gemini-2.5-flash'),
 });
 
 const parsed = envSchema.safeParse(process.env);

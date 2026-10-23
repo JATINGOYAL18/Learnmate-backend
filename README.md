@@ -2,7 +2,9 @@
 
 The backend API service for **LearnMate** — an AI-powered personalized learning companion for students.
 
-This is **Milestone 1**: the production-conscious TypeScript Express backend foundation.
+This repository features:
+- **Milestone 1**: Clean, production-conscious TypeScript Express backend foundation.
+- **Milestone 2**: Gemini AI integration powered by Google's official `@google/genai` SDK with strict grounding and zero hallucinations.
 
 ---
 
@@ -12,22 +14,31 @@ This is **Milestone 1**: the production-conscious TypeScript Express backend fou
 Learnmate-backend/
 ├── .env.example            # Environment variables template (placeholders only)
 ├── .env                    # Local environment variables (ignored by Git)
-├── .gitignore              # Ignores node_modules, dist, .env, and logs
+├── .gitignore              # Excludes node_modules, dist, .env, and logs
 ├── package.json            # Scripts & dependencies
 ├── tsconfig.json           # Strict TypeScript configuration
-├── README.md               # Setup and usage guide (this file)
+├── README.md               # Setup and usage guide
+├── test/
+│   ├── ai.routes.test.ts   # AI routes tested with mock Gemini (runs offline)
+│   ├── ai.validation.test.ts # Input limits & schema validation tests
+│   ├── gemini.service.test.ts# Secret redaction & initialization tests
+│   └── health.test.ts      # Health check and root tests
 └── src/
     ├── app.ts              # Express application factory & middleware chain
     ├── server.ts           # Server entrypoint (listens on 0.0.0.0:PORT)
     ├── config/
-    │   └── env.ts          # Type-safe environment variable parsing with Zod
+    │   └── env.ts          # Zod-validated environment configuration
     ├── middleware/
-    │   ├── errorHandler.ts # Centralized JSON error handler
+    │   ├── errorHandler.ts # Centralized JSON error handler with secret redaction
     │   ├── notFound.ts     # Consistent JSON 404 handler for unknown routes
-    │   └── validate.ts     # Reusable request validation middleware with Zod
+    │   └── validate.ts     # Generic Zod request validation middleware
     ├── routes/
-    │   ├── index.ts        # Main router (root endpoint & /api mounting)
-    │   └── health.ts       # Health check router (/api/health)
+    │   ├── index.ts        # Main router mounting /api/health and /api/ai
+    │   ├── health.ts       # Health check router (/api/health)
+    │   └── ai.ts           # AI endpoints (/explain, /quiz, /practice)
+    ├── services/
+    │   ├── ai.schemas.ts   # Zod request & response schemas for AI operations
+    │   └── gemini.service.ts # Gemini SDK service with strict grounding & retries
     └── utils/
         └── errors.ts       # AppError class for predictable operational errors
 ```
@@ -36,11 +47,11 @@ Learnmate-backend/
 
 ## 📋 Prerequisites
 
-- **Node.js**: v18.x or v20.x or v22+ (v24.x also supported)
+- **Node.js**: v18.x, v20.x, v22+, or v24.x
 - **npm**: v9+ (or higher)
 - **Windows PowerShell**
 
-Verify your installations in PowerShell:
+Verify in PowerShell:
 ```powershell
 node -v
 npm -v
@@ -61,121 +72,115 @@ Copy `.env.example` to create your local `.env` file:
 Copy-Item .env.example .env
 ```
 
-Default configuration in `.env`:
+Edit `.env` and provide your Google Gemini API key:
 ```env
 PORT=3000
 NODE_ENV=development
 CORS_ORIGIN=http://localhost:5173
+GEMINI_API_KEY=your_actual_gemini_api_key_here
+GEMINI_MODEL=gemini-2.5-flash
 ```
-> **Note**: Vite's default dev server runs at `http://localhost:5173`. If your React frontend uses a different port, update `CORS_ORIGIN` accordingly.
 
-### Step 3: Run in Development Mode
+> **Security Note**: Never commit `.env` or hardcode API keys. The backend automatically masks and redacts API keys from logs and error responses.
+
+### Step 3: Run the Automated Test Suite
+Runs unit and integration tests (tests run 100% offline without needing a real API key):
+```powershell
+npm test
+```
+
+### Step 4: Verify TypeScript Types
+```powershell
+npm run typecheck
+```
+
+### Step 5: Start in Development Mode
 Starts the server with live file reloading via `tsx`:
 ```powershell
 npm run dev
 ```
 
-### Step 4: Verify TypeScript Types
-Run the TypeScript compiler in check-only mode (no files emitted):
+### Step 6: Build and Run in Production
 ```powershell
-npm run typecheck
-```
-
-### Step 5: Build for Production
-Compiles TypeScript into clean JavaScript inside the `dist/` folder:
-```powershell
+# Build into dist/
 npm run build
-```
 
-### Step 6: Run Production Build
-Starts the compiled JavaScript server:
-```powershell
+# Start the compiled production server
 npm start
 ```
 
 ---
 
-## 📡 API Endpoints & Testing
+## 🧠 Strict Grounding & Academic Integrity
 
-You can test endpoints using Windows PowerShell with `Invoke-RestMethod` or `curl.exe`:
+All AI features enforce strict grounding rules:
+1. **Material-Only Grounding**: The AI is instructed to answer, generate quizzes, or build practice flashcards **exclusively** from the user's provided `studyMaterial`.
+2. **Zero Hallucination**: The AI will never invent facts, citations, quotes, or page numbers.
+3. **Absence Handling**: If a topic is not in the study material, `foundInMaterial` is set to `false`, references state `"Not present in provided material"`, and the AI explains why without fabricating facts.
+4. **Resilience**: Features automatic retry on transient `503` demand spikes and input limits (10 to 50,000 characters).
 
-### 1. Root Welcome Endpoint
-- **Method**: `GET /`
-- **Command**:
-  ```powershell
-  Invoke-RestMethod -Uri "http://localhost:3000/" -Method Get
-  ```
-- **Response**:
-  ```json
-  {
-    "service": "LearnMate API",
-    "status": "running",
-    "version": "1.0.0",
-    "description": "AI-powered personalized learning companion for students",
-    "endpoints": {
-      "health": "/api/health"
-    }
-  }
-  ```
+---
 
-### 2. Health Check Endpoint
-- **Method**: `GET /api/health`
-- **Command**:
-  ```powershell
-  Invoke-RestMethod -Uri "http://localhost:3000/api/health" -Method Get
-  ```
-- **Response**:
-  ```json
-  {
-    "status": "ok",
-    "service": "learnmate-backend",
-    "timestamp": "2026-10-23T14:20:00.000Z",
-    "uptimeSeconds": 15,
-    "environment": "development"
-  }
-  ```
+## 📡 API Endpoints & PowerShell Examples
 
-### 3. Health Check with Diagnostics (Zod Query Validation)
-- **Method**: `GET /api/health?verbose=true`
-- **Command**:
-  ```powershell
-  Invoke-RestMethod -Uri "http://localhost:3000/api/health?verbose=true" -Method Get
-  ```
-- If you pass an invalid value (e.g., `?verbose=invalid`), Zod automatically rejects the request with a `400 Bad Request` and structured validation errors:
-  ```powershell
-  Invoke-RestMethod -Uri "http://localhost:3000/api/health?verbose=invalid" -Method Get
-  ```
+### 1. Root & Health Check
+```powershell
+# Root service message
+Invoke-RestMethod -Uri "http://localhost:3000/" -Method Get
 
-### 4. 404 Unknown Route Handling
-- Any unrecognized route returns a standardized JSON 404 response:
-  ```powershell
-  Invoke-RestMethod -Uri "http://localhost:3000/api/non-existent" -Method Get
-  ```
-- **Response**:
-  ```json
-  {
-    "success": false,
-    "error": {
-      "code": "ROUTE_NOT_FOUND",
-      "message": "The requested resource 'GET /api/non-existent' does not exist on this server."
-    }
-  }
-  ```
+# Health status
+Invoke-RestMethod -Uri "http://localhost:3000/api/health" -Method Get
+```
+
+### 2. POST /api/ai/explain
+Explains a concept strictly grounded in the provided text.
+
+```powershell
+$body = @{
+  studyMaterial = "Mitochondria are membrane-bound cell organelles that generate most of the chemical energy needed to power the cell's biochemical reactions. Chemical energy produced by the mitochondria is stored in a small molecule called adenosine triphosphate (ATP)."
+  topic = "Mitochondria"
+  level = "beginner"
+} | ConvertTo-Json
+
+Invoke-RestMethod -Uri "http://localhost:3000/api/ai/explain" -Method Post -Body $body -ContentType "application/json" | ConvertTo-Json -Depth 5
+```
+
+### 3. POST /api/ai/quiz
+Generates a grounded multiple-choice quiz with verbatim citations and explanation.
+
+```powershell
+$body = @{
+  studyMaterial = "Mitochondria are membrane-bound cell organelles that generate most of the chemical energy needed to power the cell's biochemical reactions. Chemical energy produced by the mitochondria is stored in a small molecule called adenosine triphosphate (ATP)."
+  numQuestions = 2
+  difficulty = "easy"
+} | ConvertTo-Json
+
+Invoke-RestMethod -Uri "http://localhost:3000/api/ai/quiz" -Method Post -Body $body -ContentType "application/json" | ConvertTo-Json -Depth 5
+```
+
+### 4. POST /api/ai/practice
+Generates practice items (flashcards or exercises) grounded in the text.
+
+```powershell
+$body = @{
+  studyMaterial = "Mitochondria are membrane-bound cell organelles that generate most of the chemical energy needed to power the cell's biochemical reactions. Chemical energy produced by the mitochondria is stored in a small molecule called adenosine triphosphate (ATP)."
+  type = "flashcards"
+  numItems = 2
+} | ConvertTo-Json
+
+Invoke-RestMethod -Uri "http://localhost:3000/api/ai/practice" -Method Post -Body $body -ContentType "application/json" | ConvertTo-Json -Depth 5
+```
 
 ---
 
 ## ☁️ Google Cloud Run Compatibility
 
-This backend is architected to be directly deployable to Google Cloud Run:
-- **Port Binding**: Binds to `process.env.PORT` (Cloud Run dynamically sets this) and falls back to `3000` locally.
-- **Host Binding**: Binds to `0.0.0.0` (required for containerized environments to route traffic).
-- **Stateless**: Does not store session state in memory or rely on local disk persistence.
-- **Graceful Shutdown**: Listens for `SIGTERM` and `SIGINT` signals to allow active requests to finish before container termination.
+- **Port Binding**: Binds to `0.0.0.0` and dynamic `process.env.PORT` (defaults to `3000`).
+- **Stateless**: The server maintains no in-memory state between requests.
+- **Graceful Shutdown**: Traps `SIGTERM` and `SIGINT` signals for zero-downtime container updates.
 
 ---
 
-## 🔮 Next Steps (Milestone 2+)
-
-1. **Google AI Studio / Gemini API Integration**: Add structured prompt services and SDK integration.
-2. **Frontend Connection**: Connect the existing React + Vite frontend to this backend.
-3. **Google Cloud Run Deployment**: Deploy the service to Google Cloud.
+## 🔮 Upcoming Milestones
+- **Milestone 3**: Connect the backend to the existing React + Vite frontend.
+- **Milestone 4**: Google Cloud Run automated deployment and production CI/CD.
